@@ -138,55 +138,118 @@ jobs:
               echo "Updating existing changelog for $CHART_NAME"
             fi
             
-            # Generate changelog using conventional-changelog-cli
-            # This generates changelog for the current directory structure
-            cd "$CHART_DIR"
+            # Get all commits for this chart from the PR, excluding changelog commits and merge commits
+            cd ../..  # Go back to charts root to use proper git log
+            PR_COMMITS=$(git log origin/main..HEAD \
+              --pretty=format:"- %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" \
+              --grep="Update.*changelog" --invert-grep \
+              --no-merges \
+              -- "$CHART_DIR/")
             
-            # Generate conventional changelog
-            npx conventional-changelog-cli -p angular -i CHANGELOG.md -s -r 0 --commit-path "." --lernaPackage "$CHART_NAME"
+            echo "PR commits found:"
+            echo "$PR_COMMITS"
             
-            # Post-process the changelog
-            if [ -f "CHANGELOG.md" ]; then
-              # Replace short commit SHAs with full SHAs and add proper links
-              sed -i.bak -E 's|\[([a-f0-9]{7})\]|[\1](${{ github.server_url }}/${{ github.repository }}/commit/\1)|g' CHANGELOG.md
-              
-              # Remove the "unreleased" section if it exists
-              sed -i.bak '/# \[Unreleased\]/,/^$/d' CHANGELOG.md
-              
-              # Add new version entry if not already present
-              CURRENT_DATE=$(date +'%Y-%m-%d')
-              VERSION_HEADER="## [$CURRENT_VERSION] - $CURRENT_DATE"
-              
-              # Check if version header already exists
-              if ! grep -q "## \[$CURRENT_VERSION\]" CHANGELOG.md; then
-                # Create temporary file with new version entry
-                {
-                  echo "# Changelog"
-                  echo ""
-                  echo "All notable changes to this project will be documented in this file."
-                  echo ""
-                  echo "$VERSION_HEADER"
-                  echo ""
-                  echo "### Changed"
-                  echo ""
-                  echo "- $PR_TITLE ([#${{ github.event.number }}]($PR_URL))"
-                  echo ""
-                  
-                  # Add existing content, skipping the first "# Changelog" line if it exists
-                  if [ -s CHANGELOG.md ]; then
-                    tail -n +2 CHANGELOG.md | sed '/^# Changelog$/,/^$/d'
-                  fi
-                } > CHANGELOG.tmp
-                
-                mv CHANGELOG.tmp CHANGELOG.md
+            # Create new changelog entry
+            CURRENT_DATE=$(date +'%Y-%m-%d')
+            VERSION_HEADER="## [$CURRENT_VERSION] - $CURRENT_DATE"
+            
+            # Create temporary file with new version entry
+            TEMP_CHANGELOG=$(mktemp)
+            {
+              echo "# Changelog"
+              echo ""
+              echo "All notable changes to this project will be documented in this file."
+              echo ""
+              echo "$VERSION_HEADER"
+              echo ""
+              echo "### Changed"
+              echo ""
+              if [ -n "$PR_COMMITS" ]; then
+                echo "$PR_COMMITS"
+              else
+                echo "- $PR_TITLE ([#${{ github.event.number }}]($PR_URL))"
               fi
+              echo ""
+            } > "$TEMP_CHANGELOG"
+            
+            # Add existing content, but remove any previous entries for the same version
+            # and any entries that contain commits from this PR
+            if [ -f "$CHART_DIR/CHANGELOG.md" ]; then
+              echo "Processing existing changelog..."
               
-              # Clean up backup files
-              rm -f CHANGELOG.md.bak
+              # Get all PR commit hashes for filtering
+              PR_COMMIT_HASHES=$(git log origin/main..HEAD --pretty=format:"%h" -- "$CHART_DIR/")
               
-              echo "Generated changelog for $CHART_NAME:"
-              head -20 CHANGELOG.md
+              # Use awk to filter out sections containing PR commits
+              awk -v pr_hashes="$PR_COMMIT_HASHES" -v current_version="$CURRENT_VERSION" '
+                BEGIN { 
+                  in_section = 0
+                  keep_section = 1
+                  section_buffer = ""
+                  # Convert PR hashes to lookup array
+                  split(pr_hashes, hash_array, "\n")
+                  for (i in hash_array) {
+                    if (hash_array[i] != "") {
+                      pr_hash_lookup[hash_array[i]] = 1
+                    }
+                  }
+                }
+                
+                /^# Changelog/ { next }
+                /^All notable changes/ { next }
+                /^$/ && in_section == 0 { next }
+                
+                /^## \[/ {
+                  # Output previous section if we kept it
+                  if (in_section == 1 && keep_section == 1 && section_buffer != "") {
+                    print section_buffer
+                  }
+                  
+                  # Check if this is the same version we are adding
+                  if (match($0, /## \[([^\]]+)\]/, arr) && arr[1] == current_version) {
+                    # Skip this version - we are replacing it
+                    in_section = 1
+                    keep_section = 0
+                    section_buffer = ""
+                    next
+                  }
+                  
+                  # Start new section
+                  in_section = 1
+                  keep_section = 1
+                  section_buffer = $0
+                  next
+                }
+                
+                in_section == 1 {
+                  # Check if this line contains a PR commit hash
+                  if (match($0, /\[([a-f0-9]+)\]/, arr)) {
+                    commit_hash = arr[1]
+                    if (commit_hash in pr_hash_lookup) {
+                      keep_section = 0
+                      section_buffer = ""
+                    }
+                  }
+                  
+                  if (keep_section == 1) {
+                    section_buffer = section_buffer "\n" $0
+                  }
+                }
+                
+                END {
+                  # Output final section if keeping it
+                  if (in_section == 1 && keep_section == 1 && section_buffer != "") {
+                    print section_buffer
+                  }
+                }
+              ' "$CHART_DIR/CHANGELOG.md" >> "$TEMP_CHANGELOG"
             fi
+            
+            # Replace original changelog
+            mv "$TEMP_CHANGELOG" "$CHART_DIR/CHANGELOG.md"
+            
+            echo "Generated changelog for $CHART_NAME:"
+            head -20 "$CHART_DIR/CHANGELOG.md"
             
             # Return to charts root
             cd ../..
