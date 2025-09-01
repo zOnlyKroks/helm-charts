@@ -189,6 +189,14 @@ jobs:
               echo "Processing existing changelog..."
               
               # Get all PR commit hashes for filtering
+              echo "Debugging git history for commit filtering:"
+              echo "Checking what commits exist in main branch for $CHART_DIR:"
+              git log origin/main --oneline --pretty=format:"%h %s" -- "$CHART_DIR/" | head -10 || echo "No commits found in main"
+              echo "Checking what commits exist in current HEAD for $CHART_DIR:"
+              git log HEAD --oneline --pretty=format:"%h %s" -- "$CHART_DIR/" | head -10 || echo "No commits found in HEAD"
+              echo "Checking PR-only commits (origin/main..HEAD):"
+              git log origin/main..HEAD --oneline --pretty=format:"%h %s" -- "$CHART_DIR/" || echo "No PR-only commits found"
+              
               PR_COMMIT_HASHES=$(git log origin/main..HEAD --pretty=format:"%h" -- "$CHART_DIR/")
               
               # Use awk to filter out sections containing PR commits, keeping published versions
