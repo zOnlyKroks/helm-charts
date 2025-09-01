@@ -95,6 +95,10 @@ jobs:
             # Get all commits for this chart since diverging from main
             COMMITS=$(git log origin/main..HEAD --pretty=format:"* %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" -- "charts/$CHART_NAME/")
             
+            # Debug: show what commits we found
+            echo "All commits found for $CHART_NAME:"
+            echo "$COMMITS"
+            
             if [ -z "$COMMITS" ]; then
               echo "No commits found for $CHART_NAME"
               continue
