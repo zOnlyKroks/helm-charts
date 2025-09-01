@@ -2,6 +2,8 @@
 
 ## <small>0.0.3</small> (2025-09-01)
 
+* bump 4 ([e99b3b0](https://github.com/zOnlyKroks/helm-charts/commit/e99b3b04c70753e43388e257fc6bf43ba634185d))
+* Update memcached changelog ([8293522](https://github.com/zOnlyKroks/helm-charts/commit/829352203ca6126164022d1de9029fef80a04bcc))
 * Merge branch 'test4' of https://github.com/zOnlyKroks/helm-charts into test4 ([e290ba2](https://github.com/zOnlyKroks/helm-charts/commit/e290ba2ad68fcc749fb425a7dc72b95aef8d80be))
 * changes ([c718713](https://github.com/zOnlyKroks/helm-charts/commit/c7187134a824a007d6d3736f4af87014c34d8f75))
 * bump version ([e5a5087](https://github.com/zOnlyKroks/helm-charts/commit/e5a50871a13874995fb044e56ff74ac80d9c5475))
