@@ -1,6 +1,6 @@
 apiVersion: v2
 name: memcached
-description: Memcached is an in-memory key-value store for small chunks of arbitrary data (strings, objects)
+description: Memcached is an in-memory key-value store for small chunks of arbitrary data
 type: application
 
 version: 0.0.3
