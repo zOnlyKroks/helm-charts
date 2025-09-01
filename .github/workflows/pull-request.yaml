@@ -148,7 +148,7 @@ jobs:
             # Post-process the changelog
             if [ -f "CHANGELOG.md" ]; then
               # Replace short commit SHAs with full SHAs and add proper links
-              sed -i.bak -E 's/\[([a-f0-9]{7})\]/[\1](${{ github.server_url }}\/${{ github.repository }}\/commit\/\1)/g' CHANGELOG.md
+              sed -i.bak -E 's|\[([a-f0-9]{7})\]|[\1](${{ github.server_url }}/${{ github.repository }}/commit/\1)|g' CHANGELOG.md
               
               # Remove the "unreleased" section if it exists
               sed -i.bak '/# \[Unreleased\]/,/^$/d' CHANGELOG.md
