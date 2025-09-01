@@ -116,14 +116,24 @@ jobs:
           CHANGED_FILES=$(git diff --name-only origin/main..HEAD)
           CHANGED_CHARTS=$(echo "$CHANGED_FILES" | grep "^charts/" | cut -d'/' -f2 | sort -u)
 
+          # Debug: Show current directory structure
+          echo "Current working directory: $(pwd)"
+          echo "Contents of current directory:"
+          ls -la
+          echo "Contents of charts directory (if it exists):"
+          ls -la charts/ || echo "No charts/ directory found"
+
           for CHART_NAME in $CHANGED_CHARTS; do
+            echo "Processing chart: $CHART_NAME"
+            echo "Checking for charts/$CHART_NAME directory..."
             if [ ! -d "charts/$CHART_NAME" ] || [ ! -f "charts/$CHART_NAME/Chart.yaml" ]; then
+              echo "Skipping $CHART_NAME - directory or Chart.yaml not found"
               continue
             fi
             
             echo "Generating changelog for: $CHART_NAME"
             
-            CHART_DIR="$CHART_NAME"
+            CHART_DIR="charts/$CHART_NAME"
             CHANGELOG_FILE="$CHART_DIR/CHANGELOG.md"
             
             # Get current version from Chart.yaml
