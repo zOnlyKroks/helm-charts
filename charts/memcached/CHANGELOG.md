@@ -2,6 +2,7 @@
 
 ## <small>0.0.3</small> (2025-09-01)
 
+* Update memcached changelog ([9939356](https://github.com/zOnlyKroks/helm-charts/commit/993935696a8dff5707b7b64766b2a84ceb89b43c))
 * commit after bump ([87a280a](https://github.com/zOnlyKroks/helm-charts/commit/87a280a0a4bf1929e498c17a23483a6889355c20))
 * bump version ([8ee88d1](https://github.com/zOnlyKroks/helm-charts/commit/8ee88d1b4c5e1b43195641cd3f5578e4c506d065))
 * Update memcached changelog ([9eb1327](https://github.com/zOnlyKroks/helm-charts/commit/9eb132784c0012ad08cec5a89512d73cf03492ea))
