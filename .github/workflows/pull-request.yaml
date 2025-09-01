@@ -67,6 +67,13 @@ jobs:
             fi
             
             echo "Testing chart: $CHART_NAME"
+            
+            # Update dependencies if Chart.yaml has dependencies
+            if grep -q "^dependencies:" "charts/$CHART_NAME/Chart.yaml"; then
+              echo "Updating dependencies for $CHART_NAME"
+              helm dependency update "charts/$CHART_NAME"
+            fi
+            
             helm lint "charts/$CHART_NAME"
             helm unittest "charts/$CHART_NAME" || echo "No tests found for $CHART_NAME"
             helm template "charts/$CHART_NAME" > /dev/null
