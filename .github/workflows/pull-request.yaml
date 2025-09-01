@@ -262,10 +262,7 @@ jobs:
             echo "Generated changelog for $CHART_NAME:"
             head -20 "$CHART_DIR/CHANGELOG.md"
             
-            # Return to charts root
-            cd ../..
-            
-            # Commit changes if CHANGELOG.md was modified
+            # Commit changes if CHANGELOG.md was modified (already in git root)
             if ! git diff --quiet "$CHANGELOG_FILE"; then
               git add "$CHANGELOG_FILE"
               git commit -m "Update $CHART_NAME changelog" --signoff
