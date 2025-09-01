@@ -1,5 +1,16 @@
 # Changelog
 
+## <small>0.0.5</small> (2025-09-01)
+
+* Merge branch 'test5' of https://github.com/zOnlyKroks/helm-charts into test5 ([d33c99f](https://github.com/zOnlyKroks/helm-charts/commit/d33c99fcfd1cc7f189cda27bb8b49b6a98d0100a))
+* bump version ([d14c37f](https://github.com/zOnlyKroks/helm-charts/commit/d14c37f34a0fd12f153d84cdc7b7fd1287fa0db3))
+* Update memcached changelog ([31ed6ef](https://github.com/zOnlyKroks/helm-charts/commit/31ed6ef44c125287cc9d7a2f30cd6747c93cd910))
+* Merge branch 'test5' of https://github.com/zOnlyKroks/helm-charts into test5 ([6ed46b9](https://github.com/zOnlyKroks/helm-charts/commit/6ed46b9cd0d32912a294d423bba60927d2320c00))
+* bump 4 ([8ca93a3](https://github.com/zOnlyKroks/helm-charts/commit/8ca93a3cb60e5cd4240b13d6913308c8dd581352))
+* Update memcached changelog ([f9b6ea5](https://github.com/zOnlyKroks/helm-charts/commit/f9b6ea5eaca8da66cf227e2ab8fcadcde15bdc39))
+* bump version ([3665cd6](https://github.com/zOnlyKroks/helm-charts/commit/3665cd6ea3779b49008630110e8407e2fb75abd0))
+* bump 1 ([d3167ad](https://github.com/zOnlyKroks/helm-charts/commit/d3167adfcdd2eea926c159fe8786b20ba318f453))
+
 ## <small>0.0.4</small> (2025-09-01)
 
 * Merge branch 'test5' of https://github.com/zOnlyKroks/helm-charts into test5 ([6ed46b9](https://github.com/zOnlyKroks/helm-charts/commit/6ed46b9cd0d32912a294d423bba60927d2320c00))
