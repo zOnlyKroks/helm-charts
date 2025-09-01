@@ -3,7 +3,7 @@ name: memcached
 description: Memcached is an in-memory key-value store for small chunks of arbitrary data (strings, objects)
 type: application
 
-version: 0.0.2
+version: 0.0.3
 appVersion: "1.6.32"
 
 keywords:
