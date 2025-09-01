@@ -92,23 +92,8 @@ jobs:
             CHANGELOG_FILE="charts/$CHART_NAME/CHANGELOG.md"
             CURRENT_DATE=$(date +'%Y-%m-%d')
             
-            # Get commits for this chart that aren't already in changelog
-            ALL_COMMITS=$(git log origin/main..HEAD --pretty=format:"%h|%s" -- "charts/$CHART_NAME/")
-            COMMITS=""
-            
-            # Filter out commits already in changelog
-            while IFS='|' read -r hash subject; do
-              if [ -n "$hash" ] && [ -n "$subject" ]; then
-                # Check if this commit hash is already in the changelog
-                if [ ! -f "$CHANGELOG_FILE" ] || ! grep -q "$hash" "$CHANGELOG_FILE"; then
-                  if [ -n "$COMMITS" ]; then
-                    COMMITS="$COMMITS"$'\n'"* $subject ([$hash](${{ github.server_url }}/${{ github.repository }}/commit/$hash))"
-                  else
-                    COMMITS="* $subject ([$hash](${{ github.server_url }}/${{ github.repository }}/commit/$hash))"
-                  fi
-                fi
-              fi
-            done <<< "$ALL_COMMITS"
+            # Get all commits for this chart since diverging from main
+            COMMITS=$(git log origin/main..HEAD --pretty=format:"* %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" -- "charts/$CHART_NAME/")
             
             if [ -z "$COMMITS" ]; then
               echo "No commits found for $CHART_NAME"
