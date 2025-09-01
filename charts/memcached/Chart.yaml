@@ -18,13 +18,13 @@ home: https://www.cloudpirates.io
 sources:
   - https://github.com/CloudPirates-io/helm-charts/tree/main/charts/memcached
 
-maintainers:
-  - name: CloudPirates GmbH & Co. KG
-    url: https://www.cloudpirates.io
-
 icon: https://a.storyblok.com/f/143071/512x512/0faa83eb34/memcached-logo.svg
 
 dependencies:
   - name: common
     version: "1.x.x"
     repository: oci://registry-1.docker.io/cloudpirates
+
+maintainers:
+  - name: CloudPirates GmbH & Co. KG
+    url: https://www.cloudpirates.io
