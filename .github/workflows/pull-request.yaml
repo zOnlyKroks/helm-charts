@@ -122,14 +122,14 @@ jobs:
             echo "$COMMITS" >> "$TEMP_CHANGELOG"
             echo "" >> "$TEMP_CHANGELOG"
             
-            # Add existing content, but skip any existing entry for same version/date
+            # Add existing content, but skip any existing entry for same version (any date)
             if [ -f "$CHANGELOG_FILE" ]; then
-              awk -v version="## <small>$CHART_VERSION</small> ($CURRENT_DATE)" '
+              awk -v chart_version="$CHART_VERSION" '
                 BEGIN { skip=0; found_first_section=0 }
                 /^# Changelog/ { next }
                 /^$/ && !found_first_section { next }
                 /^## / { 
-                  if ($0 == version) { 
+                  if ($0 ~ "## <small>" chart_version "</small>") { 
                     skip=1; next 
                   } else if (skip==1) { 
                     skip=0 
