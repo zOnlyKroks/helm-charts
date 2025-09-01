@@ -191,65 +191,81 @@ jobs:
               # Get all PR commit hashes for filtering
               PR_COMMIT_HASHES=$(git log origin/main..HEAD --pretty=format:"%h" -- "$CHART_DIR/")
               
-              # Use awk to filter out sections containing PR commits
+              # Use awk to filter out sections containing PR commits, keeping published versions
+              echo "Filtering existing changelog sections..."
+              echo "PR commit hashes to exclude: $PR_COMMIT_HASHES"
+              
               awk -v pr_hashes="$PR_COMMIT_HASHES" -v current_version="$CURRENT_VERSION" '
                 BEGIN { 
                   in_section = 0
                   keep_section = 1
                   section_buffer = ""
+                  section_header = ""
                   # Convert PR hashes to lookup array
                   split(pr_hashes, hash_array, "\n")
                   for (i in hash_array) {
                     if (hash_array[i] != "") {
                       pr_hash_lookup[hash_array[i]] = 1
+                      print "Will exclude sections containing: " hash_array[i] > "/dev/stderr"
                     }
                   }
                 }
                 
+                # Skip header lines completely
                 /^# Changelog/ { next }
                 /^All notable changes/ { next }
-                /^$/ && in_section == 0 { next }
                 
-                /^## \[/ {
+                # Version section headers
+                /^## / {
                   # Output previous section if we kept it
-                  if (in_section == 1 && keep_section == 1 && section_buffer != "") {
+                  if (in_section == 1 && keep_section == 1) {
+                    print section_header
                     print section_buffer
                   }
                   
-                  # Check if this is the same version we are adding
-                  if (match($0, /## \[([^\]]+)\]/, arr) && arr[1] == current_version) {
-                    # Skip this version - we are replacing it
-                    in_section = 1
-                    keep_section = 0
-                    section_buffer = ""
-                    next
-                  }
-                  
-                  # Start new section
+                  # Start new section  
+                  section_header = $0
+                  section_buffer = ""
                   in_section = 1
                   keep_section = 1
-                  section_buffer = $0
+                  
+                  # Check if this is the current version we are replacing
+                  if (match($0, /## \[([^\]]+)\]/, arr) && arr[1] == current_version) {
+                    print "Skipping current version section: " $0 > "/dev/stderr"
+                    keep_section = 0
+                  } else {
+                    print "Processing section: " $0 > "/dev/stderr"
+                  }
                   next
                 }
                 
+                # Content lines within sections
                 in_section == 1 {
-                  # Check if this line contains a PR commit hash
+                  # Check if this line contains a PR commit hash that should be excluded
                   if (match($0, /\[([a-f0-9]+)\]/, arr)) {
                     commit_hash = arr[1]
                     if (commit_hash in pr_hash_lookup) {
+                      print "Found PR commit " commit_hash " in section, excluding entire section" > "/dev/stderr"
                       keep_section = 0
                       section_buffer = ""
+                      next
                     }
                   }
                   
+                  # Add to section buffer if we are keeping this section
                   if (keep_section == 1) {
-                    section_buffer = section_buffer "\n" $0
+                    if (section_buffer == "") {
+                      section_buffer = $0
+                    } else {
+                      section_buffer = section_buffer "\n" $0
+                    }
                   }
                 }
                 
                 END {
                   # Output final section if keeping it
-                  if (in_section == 1 && keep_section == 1 && section_buffer != "") {
+                  if (in_section == 1 && keep_section == 1) {
+                    print section_header
                     print section_buffer
                   }
                 }
