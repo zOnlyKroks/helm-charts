@@ -129,7 +129,7 @@ jobs:
                 /^# Changelog/ { next }
                 /^$/ && !found_first_section { next }
                 /^## / { 
-                  if ($0 ~ "## <small>" chart_version "</small>") { 
+                  if (match($0, /## <small>([^<]+)<\/small>/, arr) && arr[1] == chart_version) { 
                     skip=1; next 
                   } else if (skip==1) { 
                     skip=0 
