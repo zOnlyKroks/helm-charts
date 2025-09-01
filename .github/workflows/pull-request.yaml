@@ -13,16 +13,26 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - name: Setup Helm
         uses: Azure/setup-helm@v4.3.1
 
-      - name: Checkout
+      - name: Checkout PR branch
         uses: actions/checkout@v5.0.0
         with:
+          path: charts
           fetch-depth: 0
           token: ${{ github.token }}
           ref: ${{ github.head_ref }}
+
+      - name: Checkout upstream main branch
+        uses: actions/checkout@v5.0.0
+        with:
+          path: upstream-charts
+          fetch-depth: 0
+          token: ${{ github.token }}
+          ref: main
 
       # Python is required because `ct lint` runs Yamale (https://github.com/23andMe/Yamale) and
       # yamllint (https://github.com/adrienverge/yamllint) which require Python
@@ -34,10 +44,16 @@ jobs:
       - name: Set up chart-testing-action
         uses: helm/chart-testing-action@v2.7.0
 
+      - name: Set up Node.js for changelog generation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
       - name: Installing plugin helm-unittest
         run: helm plugin install https://github.com/helm-unittest/helm-unittest >/dev/null
 
       - name: Get changed charts and run tests
+        working-directory: charts
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
@@ -52,7 +68,7 @@ jobs:
           echo "Origin/main:"
           git log --oneline -3 origin/main 2>/dev/null || echo "origin/main not found"
 
-          # Get changed files
+          # Get changed files by comparing with upstream
           CHANGED_FILES=$(git diff --name-only origin/main..HEAD 2>/dev/null || git diff --name-only HEAD~10..HEAD)
           echo "Changed files: $CHANGED_FILES"
 
@@ -79,110 +95,118 @@ jobs:
             helm template "charts/$CHART_NAME" > /dev/null
           done
 
-          # Update changelogs
+      - name: Generate changelog for changed charts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          cd charts
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+          # Install conventional-changelog-cli
+          npm install -g conventional-changelog-cli
+
+          # Get PR information
+          PR_TITLE=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.number }} --jq '.title')
+          PR_URL="${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.number }}"
+          echo "PR Title: $PR_TITLE"
+          echo "PR URL: $PR_URL"
+
+          # Get changed files by comparing with upstream
+          CHANGED_FILES=$(git diff --name-only origin/main..HEAD)
+          CHANGED_CHARTS=$(echo "$CHANGED_FILES" | grep "^charts/" | cut -d'/' -f2 | sort -u)
+
           for CHART_NAME in $CHANGED_CHARTS; do
             if [ ! -d "charts/$CHART_NAME" ] || [ ! -f "charts/$CHART_NAME/Chart.yaml" ]; then
               continue
             fi
             
-            echo "Updating changelog for: $CHART_NAME"
+            echo "Generating changelog for: $CHART_NAME"
             
-            # Get version and setup
-            CHART_VERSION=$(yq eval '.version' "charts/$CHART_NAME/Chart.yaml")
-            CHANGELOG_FILE="charts/$CHART_NAME/CHANGELOG.md"
-            CURRENT_DATE=$(date +'%Y-%m-%d')
+            CHART_DIR="charts/$CHART_NAME"
+            CHANGELOG_FILE="$CHART_DIR/CHANGELOG.md"
             
-            # Get all commits for this chart since diverging from main, excluding changelog update commits
-            COMMITS=$(git log origin/main..HEAD --pretty=format:"* %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" --grep="Update.*changelog" --invert-grep -- "charts/$CHART_NAME/")
+            # Get current version from Chart.yaml
+            CURRENT_VERSION=$(yq eval '.version' "$CHART_DIR/Chart.yaml")
+            echo "Current version: $CURRENT_VERSION"
             
-            # Debug: show what commits we found
-            echo "All commits found for $CHART_NAME (excluding changelog commits):"
-            echo "$COMMITS"
-            
-            if [ -z "$COMMITS" ]; then
-              echo "No commits found for $CHART_NAME"
-              continue
-            fi
-            
-            echo "Commits found:"
-            echo "$COMMITS"
-            
-            # Create/update changelog
+            # Create or backup existing changelog
             if [ ! -f "$CHANGELOG_FILE" ]; then
-              echo "# Changelog" > "$CHANGELOG_FILE"
-              echo "" >> "$CHANGELOG_FILE"
+              echo "Creating new changelog for $CHART_NAME"
+              touch "$CHANGELOG_FILE"
+            else
+              echo "Updating existing changelog for $CHART_NAME"
             fi
             
-            # Create new changelog entry only if commits exist
-            TEMP_CHANGELOG=$(mktemp)
+            # Generate changelog using conventional-changelog-cli
+            # This generates changelog for the current directory structure
+            cd "$CHART_DIR"
             
-            # Start with header
-            echo "# Changelog" > "$TEMP_CHANGELOG"
-            echo "" >> "$TEMP_CHANGELOG"
+            # Generate conventional changelog
+            npx conventional-changelog-cli -p angular -i CHANGELOG.md -s -r 0 --commit-path "." --lernaPackage "$CHART_NAME"
             
-            # Add new version entry
-            echo "## <small>$CHART_VERSION</small> ($CURRENT_DATE)" >> "$TEMP_CHANGELOG"
-            echo "" >> "$TEMP_CHANGELOG"
-            echo "$COMMITS" >> "$TEMP_CHANGELOG"
-            echo "" >> "$TEMP_CHANGELOG"
-            
-            # Add existing content, but remove entries with commits from current PR
-            if [ -f "$CHANGELOG_FILE" ]; then
-              # Get all commit hashes from current PR 
-              PR_COMMIT_HASHES=$(git log origin/main..HEAD --pretty=format:"%h" -- "charts/$CHART_NAME/")
+            # Post-process the changelog
+            if [ -f "CHANGELOG.md" ]; then
+              # Replace short commit SHAs with full SHAs and add proper links
+              sed -i.bak -E 's/\[([a-f0-9]{7})\]/[\1](${{ github.server_url }}\/${{ github.repository }}\/commit\/\1)/g' CHANGELOG.md
               
-              # Process changelog to remove sections containing PR commits
-              TEMP_SECTION=$(mktemp)
-              SECTION_TO_KEEP=""
-              IN_SECTION=0
-              KEEP_SECTION=1
+              # Remove the "unreleased" section if it exists
+              sed -i.bak '/# \[Unreleased\]/,/^$/d' CHANGELOG.md
               
-              while IFS= read -r line; do
-                if [[ "$line" =~ ^#[[:space:]]*Changelog ]]; then
-                  continue
-                elif [[ "$line" =~ ^##[[:space:]] ]]; then
-                  # Start of new section - output previous section if we're keeping it
-                  if [[ $IN_SECTION -eq 1 && $KEEP_SECTION -eq 1 && -n "$SECTION_TO_KEEP" ]]; then
-                    echo "$SECTION_TO_KEEP" >> "$TEMP_CHANGELOG"
-                  fi
-                  # Reset for new section
-                  IN_SECTION=1
-                  KEEP_SECTION=1
-                  SECTION_TO_KEEP="$line"
-                elif [[ $IN_SECTION -eq 1 ]]; then
-                  # We're in a section - check if this line contains a PR commit
-                  if [[ "$line" =~ \[([a-f0-9]+)\] ]]; then
-                    commit_hash="${BASH_REMATCH[1]}"
-                    if echo "$PR_COMMIT_HASHES" | grep -q "$commit_hash"; then
-                      # This section contains a commit from our PR - don't keep it
-                      KEEP_SECTION=0
-                      SECTION_TO_KEEP=""
-                    fi
-                  fi
+              # Add new version entry if not already present
+              CURRENT_DATE=$(date +'%Y-%m-%d')
+              VERSION_HEADER="## [$CURRENT_VERSION] - $CURRENT_DATE"
+              
+              # Check if version header already exists
+              if ! grep -q "## \[$CURRENT_VERSION\]" CHANGELOG.md; then
+                # Create temporary file with new version entry
+                {
+                  echo "# Changelog"
+                  echo ""
+                  echo "All notable changes to this project will be documented in this file."
+                  echo ""
+                  echo "$VERSION_HEADER"
+                  echo ""
+                  echo "### Changed"
+                  echo ""
+                  echo "- $PR_TITLE ([#${{ github.event.number }}]($PR_URL))"
+                  echo ""
                   
-                  if [[ $KEEP_SECTION -eq 1 ]]; then
-                    SECTION_TO_KEEP="$SECTION_TO_KEEP"$'\n'"$line"
+                  # Add existing content, skipping the first "# Changelog" line if it exists
+                  if [ -s CHANGELOG.md ]; then
+                    tail -n +2 CHANGELOG.md | sed '/^# Changelog$/,/^$/d'
                   fi
-                fi
-              done < "$CHANGELOG_FILE"
-              
-              # Output final section if keeping it
-              if [[ $IN_SECTION -eq 1 && $KEEP_SECTION -eq 1 && -n "$SECTION_TO_KEEP" ]]; then
-                echo "$SECTION_TO_KEEP" >> "$TEMP_CHANGELOG"
+                } > CHANGELOG.tmp
+                
+                mv CHANGELOG.tmp CHANGELOG.md
               fi
+              
+              # Clean up backup files
+              rm -f CHANGELOG.md.bak
+              
+              echo "Generated changelog for $CHART_NAME:"
+              head -20 CHANGELOG.md
             fi
             
-            mv "$TEMP_CHANGELOG" "$CHANGELOG_FILE"
+            # Return to charts root
+            cd ../..
             
-            # Commit if changed
+            # Commit changes if CHANGELOG.md was modified
             if ! git diff --quiet "$CHANGELOG_FILE"; then
               git add "$CHANGELOG_FILE"
-              git commit -m "Update $CHART_NAME changelog"
+              git commit -m "Update $CHART_NAME changelog
+
+Signed-off-by: $GITHUB_ACTOR <$GITHUB_ACTOR@users.noreply.github.com>"
+              echo "Committed changelog update for $CHART_NAME"
+            else
+              echo "No changes to commit for $CHART_NAME"
             fi
           done
 
-          # Push if there are commits
-          CURRENT_BRANCH=$(git branch --show-current)
-          if [ -n "$(git log origin/$CURRENT_BRANCH..HEAD 2>/dev/null)" ]; then
-            git push origin $CURRENT_BRANCH
+          # Push changes
+          if [ -n "$(git log origin/${{ github.head_ref }}..HEAD 2>/dev/null)" ]; then
+            echo "Pushing changelog updates..."
+            git push origin ${{ github.head_ref }}
+          else
+            echo "No changelog changes to push"
           fi
