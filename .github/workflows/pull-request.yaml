@@ -122,22 +122,50 @@ jobs:
             echo "$COMMITS" >> "$TEMP_CHANGELOG"
             echo "" >> "$TEMP_CHANGELOG"
             
-            # Add existing content, but skip any existing entry for same version (any date)
+            # Add existing content, but remove entries with commits from current PR
             if [ -f "$CHANGELOG_FILE" ]; then
-              awk -v chart_version="$CHART_VERSION" '
-                BEGIN { skip=0; found_first_section=0 }
-                /^# Changelog/ { next }
-                /^$/ && !found_first_section { next }
-                /^## / { 
-                  if (match($0, /## <small>([^<]+)<\/small>/, arr) && arr[1] == chart_version) { 
-                    skip=1; next 
-                  } else if (skip==1) { 
-                    skip=0 
-                  }
-                  found_first_section=1
-                }
-                skip==0 && found_first_section==1 { print }
-              ' "$CHANGELOG_FILE" >> "$TEMP_CHANGELOG"
+              # Get all commit hashes from current PR 
+              PR_COMMIT_HASHES=$(git log origin/main..HEAD --pretty=format:"%h" -- "charts/$CHART_NAME/")
+              
+              # Process changelog to remove sections containing PR commits
+              TEMP_SECTION=$(mktemp)
+              SECTION_TO_KEEP=""
+              IN_SECTION=0
+              KEEP_SECTION=1
+              
+              while IFS= read -r line; do
+                if [[ "$line" =~ ^#[[:space:]]*Changelog ]]; then
+                  continue
+                elif [[ "$line" =~ ^##[[:space:]] ]]; then
+                  # Start of new section - output previous section if we're keeping it
+                  if [[ $IN_SECTION -eq 1 && $KEEP_SECTION -eq 1 && -n "$SECTION_TO_KEEP" ]]; then
+                    echo "$SECTION_TO_KEEP" >> "$TEMP_CHANGELOG"
+                  fi
+                  # Reset for new section
+                  IN_SECTION=1
+                  KEEP_SECTION=1
+                  SECTION_TO_KEEP="$line"
+                elif [[ $IN_SECTION -eq 1 ]]; then
+                  # We're in a section - check if this line contains a PR commit
+                  if [[ "$line" =~ \[([a-f0-9]+)\] ]]; then
+                    commit_hash="${BASH_REMATCH[1]}"
+                    if echo "$PR_COMMIT_HASHES" | grep -q "$commit_hash"; then
+                      # This section contains a commit from our PR - don't keep it
+                      KEEP_SECTION=0
+                      SECTION_TO_KEEP=""
+                    fi
+                  fi
+                  
+                  if [[ $KEEP_SECTION -eq 1 ]]; then
+                    SECTION_TO_KEEP="$SECTION_TO_KEEP"$'\n'"$line"
+                  fi
+                fi
+              done < "$CHANGELOG_FILE"
+              
+              # Output final section if keeping it
+              if [[ $IN_SECTION -eq 1 && $KEEP_SECTION -eq 1 && -n "$SECTION_TO_KEEP" ]]; then
+                echo "$SECTION_TO_KEEP" >> "$TEMP_CHANGELOG"
+              fi
             fi
             
             mv "$TEMP_CHANGELOG" "$CHANGELOG_FILE"
