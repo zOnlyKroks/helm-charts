@@ -92,11 +92,11 @@ jobs:
             CHANGELOG_FILE="charts/$CHART_NAME/CHANGELOG.md"
             CURRENT_DATE=$(date +'%Y-%m-%d')
             
-            # Get all commits for this chart since diverging from main
-            COMMITS=$(git log origin/main..HEAD --pretty=format:"* %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" -- "charts/$CHART_NAME/")
+            # Get all commits for this chart since diverging from main, excluding changelog update commits
+            COMMITS=$(git log origin/main..HEAD --pretty=format:"* %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" --grep="Update.*changelog" --invert-grep -- "charts/$CHART_NAME/")
             
             # Debug: show what commits we found
-            echo "All commits found for $CHART_NAME:"
+            echo "All commits found for $CHART_NAME (excluding changelog commits):"
             echo "$COMMITS"
             
             if [ -z "$COMMITS" ]; then
