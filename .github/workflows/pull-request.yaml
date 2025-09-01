@@ -109,31 +109,38 @@ jobs:
               echo "" >> "$CHANGELOG_FILE"
             fi
             
-            # Remove existing entry for this version/date if it exists
-            if grep -q "## <small>$CHART_VERSION</small> ($CURRENT_DATE)" "$CHANGELOG_FILE"; then
-              echo "Removing existing entry for $CHART_VERSION ($CURRENT_DATE)"
+            # Create new changelog entry only if commits exist
+            TEMP_CHANGELOG=$(mktemp)
+            
+            # Start with header
+            echo "# Changelog" > "$TEMP_CHANGELOG"
+            echo "" >> "$TEMP_CHANGELOG"
+            
+            # Add new version entry
+            echo "## <small>$CHART_VERSION</small> ($CURRENT_DATE)" >> "$TEMP_CHANGELOG"
+            echo "" >> "$TEMP_CHANGELOG"
+            echo "$COMMITS" >> "$TEMP_CHANGELOG"
+            echo "" >> "$TEMP_CHANGELOG"
+            
+            # Add existing content, but skip any existing entry for same version/date
+            if [ -f "$CHANGELOG_FILE" ]; then
               awk -v version="## <small>$CHART_VERSION</small> ($CURRENT_DATE)" '
-                BEGIN { skip=0 }
-                $0 == version { skip=1; next }
-                /^## / && skip==1 { skip=0 }
-                skip==0 { print }
-              ' "$CHANGELOG_FILE" > "$CHANGELOG_FILE.tmp"
-              mv "$CHANGELOG_FILE.tmp" "$CHANGELOG_FILE"
+                BEGIN { skip=0; found_first_section=0 }
+                /^# Changelog/ { next }
+                /^$/ && !found_first_section { next }
+                /^## / { 
+                  if ($0 == version) { 
+                    skip=1; next 
+                  } else if (skip==1) { 
+                    skip=0 
+                  }
+                  found_first_section=1
+                }
+                skip==0 && found_first_section==1 { print }
+              ' "$CHANGELOG_FILE" >> "$TEMP_CHANGELOG"
             fi
             
-            # Create new changelog with entry at top
-            {
-              echo "# Changelog"
-              echo ""
-              echo "## <small>$CHART_VERSION</small> ($CURRENT_DATE)"
-              echo ""
-              echo "$COMMITS"
-              echo ""
-              # Add existing content (skip first changelog header)
-              sed -n '/^## /,$p' "$CHANGELOG_FILE" 2>/dev/null || true
-            } > "$CHANGELOG_FILE.new"
-            
-            mv "$CHANGELOG_FILE.new" "$CHANGELOG_FILE"
+            mv "$TEMP_CHANGELOG" "$CHANGELOG_FILE"
             
             # Commit if changed
             if ! git diff --quiet "$CHANGELOG_FILE"; then
