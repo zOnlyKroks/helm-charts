@@ -9,7 +9,6 @@ appVersion: "1.6.32"
 keywords:
   - memcached
   - cache
-  - in-memory
   - key-value
 
 home: https://www.cloudpirates.io
