@@ -149,7 +149,8 @@ jobs:
             fi
             
             # Get all commits for this chart from the PR, excluding changelog commits and merge commits
-            cd ../..  # Go back to charts root to use proper git log
+            # We are already in the git repository root, no need to change directory
+            echo "Getting commits for chart from directory: $(pwd)"
             PR_COMMITS=$(git log origin/main..HEAD \
               --pretty=format:"- %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" \
               --grep="Update.*changelog" --invert-grep \
