@@ -143,6 +143,7 @@ jobs:
           done
 
           # Push if there are commits
-          if [ -n "$(git log origin/HEAD..HEAD 2>/dev/null)" ]; then
-            git push
+          CURRENT_BRANCH=$(git branch --show-current)
+          if [ -n "$(git log origin/$CURRENT_BRANCH..HEAD 2>/dev/null)" ]; then
+            git push origin $CURRENT_BRANCH
           fi
